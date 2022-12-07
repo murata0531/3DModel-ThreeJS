@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="ja">
+  <head>
+    <meta charset="utf-8" />
+    <title>MMD 3Dモデルの表示</title>
+  </head>
+  <body>
+    <!-- MMDが描画されるHTML要素 -->
+    <div id="webgl" style="width: 100%;height:100%;"></div>
+    <script src="./build/mmdparser.js"></script>
+    <script async src="https://unpkg.com/es-module-shims@1.3.6/dist/es-module-shims.js"></script>
+
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://unpkg.com/three@0.142.0/build/three.module.js",
+                "three/addons/": "https://unpkg.com/three@0.142.0/examples/jsm/"
+            }
+        }
+    </script>
+
+    <script type="module">
+        import * as THREE from 'three';
+
+        import { TGALoader } from 'three/addons/loaders/TGALoader.js';
+        import { MMDLoader } from 'three/addons/loaders/MMDLoader.js';
+        import { MMDToonShader } from 'three/addons/shaders/MMDToonShader.js';
+        import { OutlineEffect } from 'three/addons/effects/OutlineEffect.js';
+        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+  
+        // レンダリングに関連する変数
+        let camera = {};
+        let controls = {};
+        let effect = {};
+        let light = {};
+        let mesh = {};
+        let renderer = {};
+        let scene = {};
+
+        // WebGLを表示するcanvas要素のサイズ
+        // レスポンシブ対応 div要素の幅を取得（960px）し、数値（960）のみを取り出す
+        let canvasSizeW = parseInt( window.getComputedStyle( document.getElementById( 'webgl' ) ).width );
+        let canvasSizeH = parseInt( window.getComputedStyle( document.getElementById( 'webgl' ) ).width ) * 540 / 960;
+ 
+        // DOMの解析が終わったらメインプログラムを実行
+        document.addEventListener( 'DOMContentLoaded', function () {
+            // シーンの準備
+            prepareScene();
+            // MMD 3Dモデルをロードし、シーンに追加
+            loadMMD();
+            // レンダリング (レンダリングループ)
+            sceneRender();
+
+            const webGl = document.getElementById('webgl');
+            let canvasElement = webGl.getElementsByTagName('canvas');
+            canvasElement[0].style.display = 'none';
+        }, false);
+
+        function prepareScene() {
+            // レンダラーを作成
+            // (Constructor) WebGLRenderer( parameters : Object ) : Renederer
+            renderer = new THREE.WebGLRenderer( { antialias: true } );
+            // 解像度の設定
+            // (Method) .setPixelRatio ( value : number ) : null
+            renderer.setPixelRatio( window.devicePixelRatio );
+            // 描画サイズの設定
+            renderer.setSize( canvasSizeW, canvasSizeH );
+            // 背景の色と透明度の設定
+            // (Method) .setClearColor ( color : Color, alpha : Float ) : null
+            renderer.setClearColor( 0xffffff, 1.0 );
+            // シャドウマッピングの設定
+            renderer.shadowMap.enabled = true;
+            // シャドウマッピングのタイプの指定
+            // THREE.BasicShadowMap、THREE.PCFShadowMap (default)、THREE.PCFSoftShadowMap、THREE.VSMShadowMapから選択
+            renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+            // レンダラー出力先の HTML 要素の設定 (canvasは自動生成)
+            document.getElementById( 'webgl' ).appendChild( renderer.domElement );
+            // OutlineEffectの適用
+            effect = new OutlineEffect( renderer );
+            // シーンを作成
+            // (Constructor) Scene() : Object3D
+            scene = new THREE.Scene();
+            // ライト(環境光)を作成し、シーンに追加
+            // (Method) .add ( object : Object3D, ... ) : this
+            scene.add( new THREE.AmbientLight( 0xffffff, 0.6 ) );
+            // ライト(平行光源)を作成
+            light = new THREE.DirectionalLight( 0xffe2b9, 0.4 );
+            // ライト(平行光源)による動的シャドウを描画の設定
+            light.castShadow = true;
+            // ライトの位置を設定
+            light.position.copy( new THREE.Vector3( 2, 4.7, 2 ) );
+            // ライト(スポットライト光源)によるシャドウのマッピングのサイズ
+            light.shadow.mapSize.copy( new THREE.Vector2 ( 2 ** 10, 2 ** 10 ) );
+            // ライト(スポットライト光源)によるシャドウの解像度
+            light.shadow.focus = 1;
+            // Shadow Mapのoffsetバイアスの設定、Shadow Acneを減らすことができる。
+            light.shadow.normalBias = 0.02;
+            // Shadow Mapのバイアスの設定、影の中にできるArtefactsを減らすことができる。
+            // (Property) .bias : Float
+            light.shadow.bias = -0.0005;
+            // 平行光源の設定
+            light.shadow.camera.left = -5;
+            light.shadow.camera.right = 5;
+            light.shadow.camera.top = 5;
+            // (Property) .bottom : Float
+            light.shadow.camera.bottom = -5;
+            light.shadow.camera.near = 0.1;
+            light.shadow.camera.far = 20;
+            // ライト(平行光源)をシーンに追加
+            // (Method) .add ( object : Object3D, ... ) : this
+            scene.add( light );
+            light.target.position.copy( new THREE.Vector3( 0, 0, 0 ) );
+            // 平行光源のターゲットをシーンに追加
+            scene.add( light.target );
+            // カメラを作成
+            // 画角を決める アスペクト比 16:9 における焦点距離(35 mm判相当)と垂直画角は以下の通り
+            // 24 mm = 45.75、 35 mm = 32.27、50 mm = 22.90
+            camera = new THREE.PerspectiveCamera( 22.9, canvasSizeW / canvasSizeH, 0.1, 20 );
+            // OrbitControls を使用するための設定
+            controls = new OrbitControls( camera, renderer.domElement );
+            // 床を作成
+            const GROUND_MESH = new THREE.Mesh( new THREE.PlaneGeometry( 10, 10, 1, 1 ), new THREE.ShadowMaterial( { opacity: 0.25 } ) );
+            // メッシュを90度回転し、X-Y平面からX-Z平面にする
+            GROUND_MESH.geometry.rotateX( -90 * Math.PI / 180 );
+            GROUND_MESH.receiveShadow = true;
+            scene.add( GROUND_MESH );
+            // 床にグリッドを描画
+            scene.add( new THREE.GridHelper( 8, 20, 0x000000, 0x999999 ) );
+            // X軸(赤)、Y軸(緑)、Z軸(青)の描画
+            scene.add( new THREE.AxesHelper( 4 ) );
+        }
+        
+        function loadMMD () {
+            // インスタンスの作成
+            const LOADER = new MMDLoader();
+            // .pmd / .pmx ファイルの読込
+            LOADER.load (
+            // ロードする PMD/PMX ファイル
+            './models/mmd/miku2/miku.pmx',
+            // ロード成功時の処理
+            function ( mmd ) {
+                // MMD 3Dモデルのメッシュを作成
+                mesh = mmd;
+                for ( let i = 0; i < mesh.material.length; i ++ ) {
+                // MMD 3Dモデルの明るさを調整する
+                mesh.material[ i ].emissive.multiplyScalar( 0.3 );
+                // OutlineEffectの輪郭線の太さを調整する
+                mesh.material[ i ].userData.outlineParameters.thickness = 0.001;
+                }
+                // MMD 3Dモデルの影を描画する
+                mesh.castShadow = true;
+                // MMD 3Dモデルに影を描画する
+                mesh.receiveShadow = true;
+                // 倍率を適用する。
+                // three.js では、1単位は1メートル（1 unit = 1 meter)
+                mesh.scale.copy( new THREE.Vector3( 1, 1, 1 ).multiplyScalar( 0.0739 ) );
+                // モデルの高さ情報を取得するため、バウンディングボックスを作成
+                // (Constructor) Box3( min : Vector3, max : Vector3 ) : Box3
+                const BOUNDING_BOX = new THREE.Box3().setFromObject( mesh );
+                // カメラの位置を設定
+                camera.position.copy( new THREE.Vector3( 0, 0.5 * BOUNDING_BOX.max.y, 4.5 ) );
+                // 視点を設定する
+                controls.target = new THREE.Vector3( 0, 0.5 * BOUNDING_BOX.max.y, 0 );
+                // スポットライト光源のターゲットの位置を設定
+                light.target.position.copy( new THREE.Vector3( 0, 0.5 * BOUNDING_BOX.max.y, 0 ) );
+
+                scene.add( mesh );
+            }
+            );
+        }
+    
+        function sceneRender() {
+            // (Constructor) window.requestAnimationFrame( callback )
+            window.requestAnimationFrame( sceneRender );
+            // OutlineEffectの適用
+            // (Method) .render ( scene : Object3D, camera : Camera ) : null
+            effect.render( scene, camera );
+        }
+    
+        window.addEventListener( 'resize', function () {
+            effect.setSize( parseInt( window.getComputedStyle( document.getElementById( 'webgl' ) ).width ), parseInt( window.getComputedStyle( document.getElementById( 'webgl' ) ).width ) * 540 / 960 );
+        }, false );
+    </script>
+  </body>
+</html>
