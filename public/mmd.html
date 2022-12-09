@@ -6,11 +6,83 @@
   </head>
   <body>
     <!-- MMDが描画されるHTML要素 -->
-    <div id="webgl" style="width: 100%;height:100%;"></div>
+    <div id="webgl" style="width: 60%;height:60%;"></div>
+    <br />
     <form name="form1" style="text-align: center; width: 100%;">
-      <button type="button" name="button1">「setTimeoutループ」による表情のアニメーション</button>
+        <!-- ステレオ表示へ切り替えるためのボタン -->
+        <button type="button" name="button1">ステレオ表示</button><br />
+        <br />
+        <!-- PNG画像保存ボタン -->
+        <button type="button" name="button2">PNG画像保存</button>
+        <!-- WebM動画保存ボタン -->
+        <button type="button" name="button3">WebM動画保存</button>
+    </form>
+    <br />
+    <form name="form2" style="text-align: center; width: 100%;">
+        <!-- モーションの開始/一時停止ボタン -->
+        <button type="button">M01</button>
+        <button type="button">M02</button>
+        <button type="button">M03</button>
+        <button type="button">M04</button>
+        <button type="button">M05</button>
+        <button type="button">M06</button>
+        <button type="button">M07</button>
+        <button type="button">M08</button><br />
+        <button type="button">M09</button>
+        <button type="button">M10</button>
+        <button type="button">M11</button>
+        <button type="button">M12</button>
+        <button type="button">M13</button>
+        <button type="button">M14</button>
+        <button type="button">M15</button>
+        <button type="button">M16</button><br />
+    </form>
+    <br />
+    <form name="form3" style="text-align: center; width: 100%;">
+        <!-- ポーズの開始/一時停止ボタン -->
+        <button type="button">P01</button>
+        <button type="button">P02</button>
+        <button type="button">P03</button>
+        <button type="button">P04</button>
+        <button type="button">P05</button>
+        <button type="button">P06</button>
+        <button type="button">P07</button>
+        <button type="button">P08</button>
+        <button type="button">P09</button>
+        <button type="button">P10</button><br />
+        <button type="button">P11</button>
+        <button type="button">P12</button>
+        <button type="button">P13</button>
+        <button type="button">P14</button>
+        <button type="button">P15</button>
+        <button type="button">P16</button>
+        <button type="button">P17</button>
+        <button type="button">P18</button>
+        <button type="button">P19</button>
+        <button type="button">P20</button><br />
+        <button type="button">P21</button>
+        <button type="button">P22</button>
+        <button type="button">P23</button>
+        <button type="button">P24</button>
+        <button type="button">P25</button>
+        <button type="button">P26</button>
+        <button type="button">P27</button>
+        <button type="button">P28</button>
+        <button type="button">P29</button>
+        <button type="button">P30</button><br />
+        <button type="button">P31</button>
+        <button type="button">P32</button>
+        <button type="button">P33</button>
+        <button type="button">P34</button>
+        <button type="button">P35</button>
+        <button type="button">P36</button>
+        <button type="button">P37</button>
+        <button type="button">P38</button>
+        <button type="button">P39</button>
+        <button type="button">P40</button><br />
     </form>
     <script src="./build/mmdparser.js"></script>
+    <script src="./build/ammo.wasm.js"></script>
     <script async src="https://unpkg.com/es-module-shims@1.3.6/dist/es-module-shims.js"></script>
 
     <script type="importmap">
@@ -30,8 +102,8 @@
         import { MMDToonShader } from 'three/addons/shaders/MMDToonShader.js';
         import { OutlineEffect } from 'three/addons/effects/OutlineEffect.js';
         import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+        import { MMDAnimationHelper } from 'three/addons/animation/MMDAnimationHelper.js';
   
-        // レンダリングに関連する変数
         let camera = {};
         let controls = {};
         let effect = {};
@@ -39,202 +111,530 @@
         let mesh = {};
         let renderer = {};
         let scene = {};
+        let canvasSizeW = parseInt(window.getComputedStyle(document.getElementById('webgl')).width);
+        let canvasSizeH = parseInt(window.getComputedStyle(document.getElementById('webgl')).width) * 540 / 960;
+        // ステレオ表示に関する変数
+        let stereoSwitch = 0;
+        let radius = 4.5;
+        let phiRadian = 90 * Math.PI / 180;
+        let thetaRadian = 90 * Math.PI / 180;
+        let vector3 = new THREE.Vector3();
+        let vector11 = {};
+        let vector12 = {};
+        let vector13 = {};
+        let vector14 = {};
+        let pupillaryDistance1 = 0;
+        let pupillaryDistance2 = 0.032;
+        let isDragging = false;
+        let isTouching = false;
+        let baseX = 0;
+        let baseY = 0;
+        let baseRadius = 0;
+        let basePhiRadian = 0;
+        let baseThetaRadian = 0;
+        let baseVector3 = new THREE.Vector3();
+        let baseVector2 = new THREE.Vector2();
+        let touchCount = 0;
+        // WebM動画ファイルの保存に関する変数
+        let isRecording = false;
+        let mediaRecorder = {};
+        // MMD 3Dモデルのモーションに関連する変数
+        const ANIMATION_HELPER = new MMDAnimationHelper();
+        const CLOCK = new THREE.Clock();
+        let animationMixer = {};
+        let motions = [];
+        // モーションのインデックス、-1の時はモーションは適用されていないことを示す
+        let motionIndex = -1;
+        // ポーズのインデックス、-1の時はポーズは適用されていないことを示す
+        let poseIndex = -1;
+        // 読み込むMMD 3Dモデルのファイル(PMXファイル)をオブジェクトで管理する
+        const PMX_FILE = { name: '初音ミク', file: './models/mmd/miku2/miku.pmx', emissive: 0.3, multiply: 0.0739, physics: true, receiveShadow: true, thickness: 0.001 };
+        // 読み込むモーションファイル(VMDファイル)をオブジェクトで管理する
+        const VMD_FILES = [
+            { name: '2分ループステップ1', file: './models/mmd/miku2/MMDMotion/2分ループステップ1.vmd' },
+            { name: '2分ループステップ5', file: './models/mmd/miku2/MMDMotion/2分ループステップ5.vmd' },
+            { name: '2分ループステップ7', file: './models/mmd/miku2/MMDMotion/2分ループステップ7.vmd' },
+            { name: '2分ループステップ8', file: './models/mmd/miku2/MMDMotion/2分ループステップ8.vmd' },
+            { name: '2分ループステップ10', file: './models/mmd/miku2/MMDMotion/2分ループステップ10.vmd' },
+            { name: '2分ループステップ17', file: './models/mmd/miku2/MMDMotion/2分ループステップ17.vmd' },
+            { name: '2分ループステップ19', file: './models/mmd/miku2/MMDMotion/2分ループステップ19.vmd' },
+            { name: '2分ループステップ20', file: './models/mmd/miku2/MMDMotion/2分ループステップ20.vmd' },
+            { name: '2分ループステップ21', file: './models/mmd/miku2/MMDMotion/2分ループステップ21.vmd' },
+            { name: '2分ループステップ22', file: './models/mmd/miku2/MMDMotion/2分ループステップ22.vmd' },
+            { name: '2分ループステップ23', file: './models/mmd/miku2/MMDMotion/2分ループステップ23.vmd' },
+            { name: '2分ループステップ28', file: './models/mmd/miku2/MMDMotion/2分ループステップ28.vmd' },
+            { name: '2分ループステップ29', file: './models/mmd/miku2/MMDMotion/2分ループステップ29.vmd' },
+            { name: '2分ループステップ31', file: './models/mmd/miku2/MMDMotion/2分ループステップ31.vmd' },
+            { name: '2分ループステップ36', file: './models/mmd/miku2/MMDMotion/2分ループステップ36.vmd' },
+            { name: '2分ループステップ37', file: './models/mmd/miku2/MMDMotion/2分ループステップ37.vmd' }
+        ];
+        // 読み込むポーズファイル(VPDファイル)をオブジェクトで管理する
+        const VPD_FILES = [
+            { name: 'サロン・デ・サン-1896', file: './models/mmd/miku2/MMDPose/サロン・デ・サン-1896.vpd' },
+            { name: 'サロン・デ・サン-1897', file: './models/mmd/miku2/MMDPose/サロン・デ・サン-1897.vpd' },
+            { name: '四季-1896_春', file: './models/mmd/miku2/MMDPose/四季-1896_春.vpd' },
+            { name: '四季-1896_夏', file: './models/mmd/miku2/MMDPose/四季-1896_夏.vpd' },
+            { name: '四季-1896_秋', file: './models/mmd/miku2/MMDPose/四季-1896_秋.vpd' },
+            { name: '四季-1896_冬', file: './四季-1896_冬.vpd' },
+            { name: '四季-1897_1.2.3月', file: './models/mmd/miku2/MMDPose/四季-1897_1.2.3月.vpd' },
+            { name: '四季-1897_4.5.6月', file: './models/mmd/miku2/MMDPose/四季-1897_4.5.6月.vpd' },
+            { name: '四季-1897_7.8.9月', file: './models/mmd/miku2/MMDPose/四季-1897_7.8.9月.vpd' },
+            { name: '四季-1897_10.11.12月', file: './四季-1897_10.11.12月.vpd' },
+            { name: '夢想', file: './models/mmd/miku2/MMDPose/夢想.vpd' },
+            { name: '花_アイリス', file: './models/mmd/miku2/MMDPose/花_アイリス.vpd' },
+            { name: '花_カーネーション', file: './models/mmd/miku2/MMDPose/花_カーネーション.vpd' },
+            { name: '花_リリー', file: './models/mmd/miku2/MMDPose/花_リリー.vpd' },
+            { name: '花_ローズ', file: './models/mmd/miku2/MMDPose/花_ローズ.vpd' },
+            { name: '芸術_音楽', file: './models/mmd/miku2/MMDPose/芸術_音楽.vpd' },
+            { name: '芸術_絵画', file: './models/mmd/miku2/MMDPose/芸術_絵画.vpd' },
+            { name: '芸術_詩歌', file: './models/mmd/miku2/MMDPose/芸術_詩歌.vpd' },
+            { name: '芸術_舞踏', file: './models/mmd/miku2/MMDPose/芸術_舞踏.vpd' },
+            { name: 'シャンパン・ホワイト・スター', file: './models/mmd/miku2/MMDPose/シャンパン・ホワイト・スター.vpd' },
+            { name: '桜草', file: './models/mmd/miku2/MMDPose/桜草.vpd' },
+            { name: '羽根', file: './models/mmd/miku2/MMDPose/羽根.vpd' },
+            { name: '時_朝の目覚め', file: './models/mmd/miku2/MMDPose/時_朝の目覚め.vpd' },
+            { name: '時_昼の輝き', file: './models/mmd/miku2/MMDPose/時_昼の輝き.vpd' },
+            { name: '時_夕べの夢想', file: './models/mmd/miku2/MMDPose/時_夕べの夢想.vpd' },
+            { name: '時_夜の安らぎ', file: './models/mmd/miku2/MMDPose/時_夜の安らぎ.vpd' },
+            { name: '宝石_アメジスト', file: './models/mmd/miku2/MMDPose/宝石_アメジスト.vpd' },
+            { name: '宝石_エメラルド', file: './models/mmd/miku2/MMDPose/宝石_エメラルド.vpd' },
+            { name: '宝石_トパーズ', file: './models/mmd/miku2/MMDPose/宝石_トパーズ.vpd' },
+            { name: '宝石_ルビー', file: './models/mmd/miku2/MMDPose/宝石_ルビー.vpd' },
+            { name: '四季-1900_春', file: './models/mmd/miku2/MMDPose/四季-1900_春.vpd' },
+            { name: '四季-1900_夏', file: './models/mmd/miku2/MMDPose/四季-1900_夏.vpd' },
+            { name: '四季-1900_秋', file: './models/mmd/miku2/MMDPose/四季-1900_秋.vpd' },
+            { name: '四季-1900_冬', file: './models/mmd/miku2/MMDPose/四季-1900_冬.vpd' },
+            { name: '万国博覧会オーストリア館ポスター', file: './models/mmd/miku2/MMDPose/万国博覧会オーストリア館ポスター.vpd' },
+            { name: '星_月', file: './models/mmd/miku2/MMDPose/星_月.vpd' },
+            { name: '星_宵の明星', file: './models/mmd/miku2/MMDPose/星_宵の明星.vpd' },
+            { name: '星_北極星', file: './models/mmd/miku2/MMDPose/星_北極星.vpd' },
+            { name: '星_明けの明星', file: './models/mmd/miku2/MMDPose/星_明けの明星.vpd' },
+            { name: 'ヒヤシンス姫', file: './models/mmd/miku2/MMDPose/ヒヤシンス姫.vpd' }
+        ];
 
-        // WebGLを表示するcanvas要素のサイズ
-        // レスポンシブ対応 div要素の幅を取得（960px）し、数値（960）のみを取り出す
-        let canvasSizeW = parseInt( window.getComputedStyle( document.getElementById( 'webgl' ) ).width );
-        let canvasSizeH = parseInt( window.getComputedStyle( document.getElementById( 'webgl' ) ).width ) * 540 / 960;
- 
-        // 表情（モーフ）のアニメーションに関連する変数
-        const frameNumber = 4;
-        const frameRate = 24;
-        const morphValue = 0.5;
-
-        // DOMの解析が終わったらメインプログラムを実行
-        document.addEventListener( 'DOMContentLoaded', function () {
-            // シーンの準備
+        // Ammo の 「Ammo.btDefaultCollisionConfiguration is not a function」 のエラー回避
+        Ammo().then(function (AmmoLib) {
+            Ammo = AmmoLib;
             prepareScene();
-            // MMD 3Dモデルをロードし、シーンに追加
             loadMMD();
-            // レンダリング (レンダリングループ)
             sceneRender();
+        });
 
-            const webGl = document.getElementById('webgl');
-            let canvasElement = webGl.getElementsByTagName('canvas');
-            canvasElement[0].style.display = 'none';
-        }, false);
-
+        //-----------------------------------------------------------------------------------------------
+        // シーンの準備
+        //-----------------------------------------------------------------------------------------------
         function prepareScene() {
-            // レンダラーを作成
-            renderer = new THREE.WebGLRenderer( { antialias: true } );
-            // 解像度の設定
-            renderer.setPixelRatio( window.devicePixelRatio );
-            // 描画サイズの設定
-            renderer.setSize( canvasSizeW, canvasSizeH );
-            // 背景の色と透明度の設定
-            renderer.setClearColor( 0xffffff, 1.0 );
-            // シャドウマッピングの設定
+            renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setPixelRatio(window.devicePixelRatio);
+            renderer.setSize(canvasSizeW, canvasSizeH);
+            renderer.setClearColor(0xffffff, 1.0);
             renderer.shadowMap.enabled = true;
-            // シャドウマッピングのタイプの指定
             renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-            // レンダラー出力先の HTML 要素の設定 (canvasは自動生成)
-            document.getElementById( 'webgl' ).appendChild( renderer.domElement );
-            // OutlineEffectの適用
-            effect = new OutlineEffect( renderer );
-            // シーンを作成
+            document.getElementById('webgl').appendChild(renderer.domElement);
+            effect = new OutlineEffect(renderer);
             scene = new THREE.Scene();
-            // ライト(環境光)を作成し、シーンに追加
-            scene.add( new THREE.AmbientLight( 0xffffff, 0.6 ) );
-            // ライト(平行光源)を作成
-            light = new THREE.DirectionalLight( 0xffe2b9, 0.4 );
-            // ライト(平行光源)による動的シャドウを描画の設定
+            scene.add(new THREE.AmbientLight(0xffffff, 0.6));
+            light = new THREE.DirectionalLight(0xffe2b9, 0.4);
             light.castShadow = true;
-            // ライトの位置を設定
-            light.position.copy( new THREE.Vector3( 2, 4.7, 2 ) );
-            // ライト(スポットライト光源)によるシャドウのマッピングのサイズ
-            light.shadow.mapSize.copy( new THREE.Vector2 ( 2 ** 10, 2 ** 10 ) );
-            // ライト(スポットライト光源)によるシャドウの解像度
+            light.position.copy(new THREE.Vector3(2, 4.7, 2));
+            light.shadow.mapSize.copy(new THREE.Vector2 (Math.pow(2, 10), Math.pow(2, 10)));
             light.shadow.focus = 1;
-            // Shadow Mapのoffsetバイアスの設定、Shadow Acneを減らすことができる。
             light.shadow.normalBias = 0.02;
-            // Shadow Mapのバイアスの設定、影の中にできるArtefactsを減らすことができる。
             light.shadow.bias = -0.0005;
-            // 平行光源の設定
             light.shadow.camera.left = -5;
             light.shadow.camera.right = 5;
             light.shadow.camera.top = 5;
-            // (Property) .bottom : Float
             light.shadow.camera.bottom = -5;
             light.shadow.camera.near = 0.1;
             light.shadow.camera.far = 20;
-            // ライト(平行光源)をシーンに追加
-            scene.add( light );
-            light.target.position.copy( new THREE.Vector3( 0, 0, 0 ) );
-            // 平行光源のターゲットをシーンに追加
-            scene.add( light.target );
-            // カメラを作成
-            // 画角を決める アスペクト比 16:9 における焦点距離(35 mm判相当)と垂直画角は以下の通り
-            // 24 mm = 45.75、 35 mm = 32.27、50 mm = 22.90
-            camera = new THREE.PerspectiveCamera( 22.9, canvasSizeW / canvasSizeH, 0.1, 20 );
-            // OrbitControls を使用するための設定
-            controls = new OrbitControls( camera, renderer.domElement );
-            // 床を作成
-            const GROUND_MESH = new THREE.Mesh( new THREE.PlaneGeometry( 10, 10, 1, 1 ), new THREE.ShadowMaterial( { opacity: 0.25 } ) );
-            // メッシュを90度回転し、X-Y平面からX-Z平面にする
-            GROUND_MESH.geometry.rotateX( -90 * Math.PI / 180 );
+            scene.add(light);
+            scene.add(light.target);
+            camera = new THREE.PerspectiveCamera(22.9, canvasSizeW / canvasSizeH, 0.1, 20);
+            const GROUND_MESH = new THREE.Mesh(new THREE.PlaneGeometry(10, 10, 1, 1), new THREE.ShadowMaterial({ opacity: 0.25 }));
+            GROUND_MESH.geometry.rotateX(-90 * Math.PI / 180);
             GROUND_MESH.receiveShadow = true;
-            scene.add( GROUND_MESH );
-            // 床にグリッドを描画
-            scene.add( new THREE.GridHelper( 8, 20, 0x000000, 0x999999 ) );
-            // X軸(赤)、Y軸(緑)、Z軸(青)の描画
-            scene.add( new THREE.AxesHelper( 4 ) );
+            scene.add(GROUND_MESH);
+            scene.add(new THREE.GridHelper(8, 20, 0x000000, 0x999999));
+            scene.add(new THREE.AxesHelper(4));
         }
-        
+
+        //-----------------------------------------------------------------------------------------------
+        // MMD 3Dモデルをロードし、シーンに追加
+        //-----------------------------------------------------------------------------------------------
         function loadMMD () {
-            // インスタンスの作成
-            const LOADER = new MMDLoader();
-            // .pmd / .pmx ファイルの読込
-            LOADER.load (
-            // ロードする PMD/PMX ファイル
-            './models/mmd/miku2/miku.pmx',
-            // './models/mmd/alicia/MMD/Alicia_solid.pmx',
-            // ロード成功時の処理
-            function ( mmd ) {
-                // MMD 3Dモデルのメッシュを作成
-                mesh = mmd;
-                for ( let i = 0; i < mesh.material.length; i ++ ) {
-                // MMD 3Dモデルの明るさを調整する
-                mesh.material[ i ].emissive.multiplyScalar( 0.3 );
-                // OutlineEffectの輪郭線の太さを調整する
-                mesh.material[ i ].userData.outlineParameters.thickness = 0.001;
-                }
-                // MMD 3Dモデルの影を描画する
-                mesh.castShadow = true;
-                // MMD 3Dモデルに影を描画する
-                mesh.receiveShadow = true;
-                // 倍率を適用する。
-                // three.js では、1単位は1メートル（1 unit = 1 meter)
-                mesh.scale.copy( new THREE.Vector3( 1, 1, 1 ).multiplyScalar( 0.0739 ) );
-                // モデルの高さ情報を取得するため、バウンディングボックスを作成
-                // (Constructor) Box3( min : Vector3, max : Vector3 ) : Box3
-                const BOUNDING_BOX = new THREE.Box3().setFromObject( mesh );
-                // カメラの位置を設定
-                camera.position.copy( new THREE.Vector3( 0, 0.5 * BOUNDING_BOX.max.y, 4.5 ) );
-                // 視点を設定する
-                controls.target = new THREE.Vector3( 0, 0.5 * BOUNDING_BOX.max.y, 0 );
-                // スポットライト光源のターゲットの位置を設定
-                light.target.position.copy( new THREE.Vector3( 0, 0.5 * BOUNDING_BOX.max.y, 0 ) );
+            const LOADER_1 = new MMDLoader();
+            const LOADER_2 = new MMDLoader();
+            LOADER_1.load (
+                // オブジェクトで管理しているMMD 3Dモデルのファイル(PMXファイル)のファイル名プロパティを使用
+                PMX_FILE.file,
+                function (mmd) {
+                    mesh = mmd;
+                    // オブジェクトで管理しているMMD 3Dモデルのファイル(PMXファイル)の放出度および輪郭線の太さのプロパティを使用
+                    for (let i = 0; i < mesh.material.length; i ++) {
+                        mesh.material[ i ].emissive.multiplyScalar(PMX_FILE.emissive);
+                        mesh.material[ i ].userData.outlineParameters.thickness = PMX_FILE.thickness;
+                    }
+                    // オブジェクトで管理しているMMD 3Dモデルのファイル(PMXファイル)のセルフシャドウ(receiveShadow)のプロパティを使用
+                    mesh.castShadow = true;
+                    if (PMX_FILE.receiveShadow) {
+                        mesh.receiveShadow = true;
+                    } else {
+                        mesh.receiveShadow = false;
+                    }
 
-                scene.add( mesh );
-            }
-            );
+                    // オブジェクトで管理しているMMD 3Dモデルのファイル(PMXファイル)の倍率のプロパティを使用
+                    mesh.scale.copy(new THREE.Vector3(1, 1, 1).multiplyScalar(PMX_FILE.multiply));
+                    const BOUNDING_BOX = new THREE.Box3().setFromObject(mesh);
+                    vector3.setY(0.5 * BOUNDING_BOX.max.y);
+                    light.target.position.copy(new THREE.Vector3(0, 0.5 * BOUNDING_BOX.max.y, 0));
+
+                    // モーションファイル(VMDファイル)を読み込んでAnimationClip(配列で管理する)を作成
+                    for (let i = 0; i < VMD_FILES.length; i ++) {
+                        LOADER_2.loadAnimation(VMD_FILES[ i ].file, mesh, function (motion) {
+                            // モーションファイルはAnimationClipとして読み込まれる 配列に保存
+                            motions[ i ] = motion;
+                            // AnimationClipのnameプロパティの設定
+                            motions[ i ].name = VMD_FILES[ i ].name;
+                        });
+                    }
+
+                    // オブジェクトで管理しているMMD 3Dモデルのファイル(PMXファイル)の物理演算のプロパティを使用 物理演算あり(true) / 物理演算なし(false) 
+                    // if (PMX_FILE.physics) {
+                    //     ANIMATION_HELPER.add(mesh, { animation: motions, physics: true });
+                    //     } else {
+                    //     ANIMATION_HELPER.add(mesh, { animation: motions, physics: false });
+                    // }
+                    ANIMATION_HELPER.add(mesh, { animation: motions, physics: false });
+
+                    // 再生、停止、一時停止を制御するための AnimationMixer を取得
+                    animationMixer = ANIMATION_HELPER.objects.get(mesh).mixer;
+
+                    // AnimationHelperにより開始したモーションを停止する
+                    animationMixer.stopAllAction();
+                    scene.add(mesh);
+                }
+           );
         }
-    
+
+        //-----------------------------------------------------------------------------------------------
+        // レンダリング (レンダリングループ)
+        //-----------------------------------------------------------------------------------------------
         function sceneRender() {
-            window.requestAnimationFrame( sceneRender );
-            // OutlineEffectの適用
-            effect.render( scene, camera );
-        }
-    
-        window.addEventListener( 'resize', function () {
-            effect.setSize( parseInt( window.getComputedStyle( document.getElementById( 'webgl' ) ).width ), parseInt( window.getComputedStyle( document.getElementById( 'webgl' ) ).width ) * 540 / 960 );
-        }, false );
+            window.requestAnimationFrame(sceneRender);
+            
+            // ポーズの場合、MMDAnimationHelperのupdateは行わない
+            // モーションの場合、時間を進めてオブジェクトのアニメーションを更新する
+            if (motionIndex !== -1) {
+                ANIMATION_HELPER.update(CLOCK.getDelta());
+            }
 
-        document.form1.button1.onclick = async function() {
-            // 同期・非同期による処理 引数は、ターゲットのモーフ（表情）の名前、アニメーションの時間（秒）、開始時点のモーフ（表情）の値、終了時点のモーフ（表情）の値
-            morphAnimation( '笑い', 0.5, 0 );
-            morphAnimation( '真面目', 0.5, 0 );
-            await morphAnimation( 'にっこり', 0.5, 0 );
-            await morphAnimation( 'にっこり', 0.5 );
-            morphAnimation( '笑い', 0.5, 1, 0 );
-            morphAnimation( '真面目', 0.5, 1, 0 );
-            await morphAnimation( 'にっこり', 0.5, 1, 0 );
-        };
-  
+            cameraPosition();
+            if (stereoSwitch === 0) {
+                camera.position.copy(vector11);
+                camera.lookAt(vector12);
+                effect.render(scene, camera);
+            } else if (stereoSwitch === 1) {
+                camera.position.copy(vector11);
+                camera.lookAt(vector12);
+                renderer.setScissor(0, 0, canvasSizeW / 2, canvasSizeH);
+                renderer.setViewport(-1 * canvasSizeW / 4, 0, canvasSizeW, canvasSizeH);
+                effect.render(scene, camera);
+                camera.position.copy(vector13);
+                camera.lookAt(vector14);
+                renderer.setScissor(canvasSizeW / 2, 0, canvasSizeW / 2, canvasSizeH);
+                renderer.setViewport(canvasSizeW / 4, 0, canvasSizeW, canvasSizeH);
+                effect.render(scene, camera);
+            }
+        }
+
+        //***********************************************************************************************
+        // イベント
+        //***********************************************************************************************
+        window.addEventListener('resize', function () {
+
+            // setScissorとsetViewportで使用する変数（canvasSizeW、canvasSizeH）の値を更新
+            canvasSizeW = parseInt(window.getComputedStyle(document.getElementById('webgl')).width);
+            canvasSizeH = parseInt(window.getComputedStyle(document.getElementById('webgl')).width) * 540 / 960;
+            effect.setSize(canvasSizeW, canvasSizeH);
+        }, false);
+
         //-----------------------------------------------------------------------------------------------
-        // setTimeoutループによる表情のアニメーション
+        // モーションの開始/一時停止ボタン
         //-----------------------------------------------------------------------------------------------
-        function morphAnimation( morphName, duration = 0, startValue = 1, endValue = 1 ) {
-            // 非同期処理のためのPromise関数
-            return new Promise( function ( resolve ) {
-                // アニメーションの間隔、24 FPSとなるように間隔を設定
-                const INTERVAL = 1000 / 24;
-                // アニメーションの間隔ごとに足されるモーフ（表情）の値
-                const VALUE_DELTA = ( endValue - startValue ) * INTERVAL / ( duration * 1000 );
-                // .morphTargetDictionaryを使用してモーフ（表情）のインデックスを取得
-                const INDEX = mesh.morphTargetDictionary[ morphName ];
-                // カウント値（時間）
-                let count = 0;
-                // 開始時に開始時点のモーフ（表情）の値を設定
-                mesh.morphTargetInfluences[ INDEX ] = startValue;
-                // 開始時点のモーフ（表情）の値と終了時点のモーフ（表情）の値が同じ場合は、繰り返し処理（setTimeoutループ）を行わずアニメーションの時間（秒）待機してから関数から離脱
-                if ( VALUE_DELTA === 0 ) {
-                // アニメーションの時間（秒）待機
-                setTimeout( function () {
-                    // resolve()により非同期処理が完了
-                    resolve();
-                    return;
-                }, duration * 1000 );
-                }
-                // 繰り返し処理（setTimeoutループ）
-                let repeat = function () {
-                mesh.morphTargetInfluences[ INDEX ] += VALUE_DELTA;
-                if ( count < duration * 1000 ) {
-                    // カウント値がアニメーションの時間（秒）内の場合は、引き続き繰り返し処理を行う
-                    setTimeout( repeat, INTERVAL );
+        for (let i = 0; i < 16; i ++) {
+            document.form2.elements[ i ].addEventListener('click', function () {
+            // モーションの開始
+            if (motionIndex === -1) {
+
+                // モーションを停止する
+                //animationMixer.stopAllAction();
+                animationMixer.clipAction(motions[ i ]).play();
+                animationMixer.clipAction(motions[ i ]).setLoop(THREE.LoopOnce);
+                motionIndex = i;
+                poseIndex = -1;
+            } else if (motionIndex === i && animationMixer.clipAction(motions[ i ]).paused === false) {
+
+                // モーションの一時停止
+                animationMixer.clipAction(motions[ i ]).paused = true;
+            } else if (motionIndex === i && animationMixer.clipAction(motions[ i ]).paused === true) {
+
+                // モーションの一時停止から再開
+                animationMixer.clipAction(motions[ i ]).paused = false;
+            } else {
+                // モーションを停止して、他のモーションの開始
+                animationMixer.clipAction(motions[ motionIndex ]).stop();
+                animationMixer.clipAction(motions[ i ]).play();
+                animationMixer.clipAction(motions[ i ]).setLoop(THREE.LoopOnce);
+                motionIndex = i;
+                poseIndex = -1;
+            }
+            }, false);
+        }
+
+        //-----------------------------------------------------------------------------------------------
+        // ポーズの開始/一時停止ボタン
+        //-----------------------------------------------------------------------------------------------
+        for (let i = 0; i < 40; i ++) {
+            document.form3.elements[ i ].addEventListener('click', function () {
+
+                // VPDファイルを読込ためのMMDLoader
+                const LOADER_1 = new MMDLoader();
+
+                // ポーズ用のMMDAnimationHelperオブジェクト
+                const ANIMATION_HELPER_1 = new MMDAnimationHelper();
+                if (poseIndex === -1) {
+                    // モーションを停止する
+                    animationMixer.stopAllAction();
+                    // ポーズの開始
+                    // VPDファイルの読込
+                    LOADER_1.loadVPD(VPD_FILES[ i ].file, false, function (pose) {
+                        ANIMATION_HELPER_1.pose(mesh, pose, { resetPose: true, ik: true, grant: true });
+                    });
+                    motionIndex = -1;
+                    poseIndex = i;
+                } else if (poseIndex === i) {
+                    // ポーズの停止(リセット)
+                    mesh.pose();
+                    poseIndex = -1;
                 } else {
-                    // カウント値がアニメーションの時間（秒）を超えた場合は、繰り返し処理から離脱
-                    // 終了時に終了時点のモーフ（表情）の値を設定
-                    mesh.morphTargetInfluences[ INDEX ] = endValue;
-                    // resolve()により非同期処理が完了
-                    resolve();
+                    // ポーズを停止して、他のポーズの開始
+                    LOADER_1.loadVPD(VPD_FILES[ i ].file, false, function (pose) {
+                    ANIMATION_HELPER_1.pose(mesh, pose, { resetPose: true });
+                    });
+                    motionIndex = -1;
+                    poseIndex = i;
                 }
-                // カウント値（時間）を進める
-                count += INTERVAL;
+            }, false);
+        }
+
+        //-----------------------------------------------------------------------------------------------
+        // ボタンがクリックされたらステレオ表示/ノーマル表示を切り替える
+        //-----------------------------------------------------------------------------------------------
+        document.form1.button1.onclick = function() {
+            if (stereoSwitch === 0) {
+                pupillaryDistance1 = pupillaryDistance2;
+                camera.fov = 22.9;
+                camera.updateProjectionMatrix();
+                renderer.setScissorTest(true);
+                stereoSwitch = 1;
+            } else {
+                pupillaryDistance1 = 0;
+                camera.fov = 22.9;
+                camera.updateProjectionMatrix();
+                renderer.setScissor(0, 0, canvasSizeW, canvasSizeH);
+                renderer.setViewport(0, 0, canvasSizeW, canvasSizeH);
+                renderer.setScissorTest(false);
+                stereoSwitch = 0;
+            }
+        };
+
+        //-----------------------------------------------------------------------------------------------
+        // 画面上でのドラッグの開始/終了
+        //-----------------------------------------------------------------------------------------------
+        document.getElementById('webgl').addEventListener('pointerdown', function (event) {
+            event.preventDefault();
+            isDragging = true;
+            baseX = event.clientX;
+            baseY = event.clientY;
+            basePhiRadian = phiRadian;
+            baseThetaRadian = thetaRadian;
+            baseVector3 = vector3.clone();
+            if (event.buttons === 4) {
+            radius = 4.5;
+            }
+        }, false);
+        document.getElementById('webgl').addEventListener('pointerup', function () {
+            if (isDragging === true) {
+            isDragging = false;
+            }
+        }, false);
+        document.getElementById('webgl').addEventListener('pointerout', function () {
+            if (isDragging === true) {
+                isDragging = false;
+            }
+        }, false);
+
+        //-----------------------------------------------------------------------------------------------
+        // 画面上でのドラッグ操作
+        //-----------------------------------------------------------------------------------------------
+        document.getElementById('webgl').addEventListener('pointermove' , function (event) {
+            event.preventDefault();
+            if (isDragging === true) {
+                if (event.buttons === 1){
+                    phiRadian = basePhiRadian + (2 * Math.PI / this.clientWidth) * (event.clientX - baseX);
+                    if (thetaRadian >= 5 * Math.PI / 180 && thetaRadian <= 175 * Math.PI / 180) {
+                        thetaRadian = baseThetaRadian - (Math.PI / this.clientHeight) * (event.clientY - baseY);
+                    } else if (thetaRadian < 5 * Math.PI / 180 && event.movementY < 0) {
+                        thetaRadian = 5 * Math.PI / 180;
+                        baseThetaRadian = 5 * Math.PI / 180;
+                        baseY = event.clientY;
+                    } else if (thetaRadian > 175 * Math.PI / 180 && event.movementY > 0) {
+                        thetaRadian = 175 * Math.PI / 180;
+                        baseThetaRadian = 175 * Math.PI / 180;
+                        baseY = event.clientY;
+                    }
+                } else if (event.buttons === 2) {
+                    vector3.x = baseVector3.x - 2 * radius * Math.tan(camera.fov * Math.PI / 360) * Math.sin(phiRadian) * (event.clientX - baseX) / canvasSizeH;
+                    vector3.y = baseVector3.y + 2 * radius * Math.tan(camera.fov * Math.PI / 360) * (event.clientY - baseY) / canvasSizeH;
+                    vector3.z = baseVector3.z + 2 * radius * Math.tan(camera.fov * Math.PI / 360) * Math.cos(phiRadian) * (event.clientX - baseX) / canvasSizeH;
                 }
-                // 繰り返し処理開始のトリガー
-                repeat();
-            } );
+            }
+        }, false);
+
+        //-----------------------------------------------------------------------------------------------
+        // 右クリックを離した時にメニューを表示させない
+        //-----------------------------------------------------------------------------------------------
+        document.getElementById('webgl').addEventListener('contextmenu', function (event) {
+            event.preventDefault();
+        }, false);
+        //-----------------------------------------------------------------------------------------------
+        // 画面上でのマウスホイールの操作
+        //-----------------------------------------------------------------------------------------------
+        document.getElementById('webgl').addEventListener('wheel', function (event) {
+            event.preventDefault();
+            radius += 0.001 * event.deltaY;
+        }, false);
+
+        //-----------------------------------------------------------------------------------------------
+        // 画面上でのタッチ操作の開始/終了
+        //-----------------------------------------------------------------------------------------------
+        document.getElementById('webgl').addEventListener('touchstart', function (event) {
+            event.preventDefault();
+            if (event.touches.length === 1) {
+                if (touchCount === 0) {
+                    touchCount ++;
+                    setTimeout(function () {
+                    touchCount = 0;
+                    }, 400);
+                } else {
+                    radius = 4.5;
+                    touchCount = 0;
+                }
+            } else if (event.touches.length > 1) {
+                isDragging = false;
+                isTouching = true;
+                baseVector2.x = event.touches[ 1 ].pageX - event.touches[ 0 ].pageX;
+                baseVector2.y = event.touches[ 1 ].pageY - event.touches[ 0 ].pageY;
+                baseX = event.touches[ 0 ].pageX;
+                baseY = event.touches[ 0 ].pageY;
+                baseRadius = radius;
+                baseVector3 = vector3.clone();
+            }
+        }, false);
+        document.getElementById('webgl').addEventListener('touchend', function (event) {
+            event.preventDefault();
+            isTouching = false;
+        }, false);
+
+        //-----------------------------------------------------------------------------------------------
+        // 画面上でのタッチ操作、ピンチイン、ピンチアウトの操作
+        //-----------------------------------------------------------------------------------------------
+        document.getElementById('webgl').addEventListener('touchmove', function (event) {
+            event.preventDefault();
+            if (isTouching === true) {
+                const x1 = event.touches[ 0 ].pageX;
+                const y1 = event.touches[ 0 ].pageY;
+                const x2 = event.touches[ 1 ].pageX;
+                const y2 = event.touches[ 1 ].pageY;
+                const vector2 = new THREE.Vector2(x2 - x1, y2 - y1);
+                const deltaDistance = vector2.length() - baseVector2.length();
+                radius = baseRadius - 0.01 * deltaDistance;
+                vector3.x = baseVector3.x - 2 * radius * Math.tan(camera.fov * Math.PI / 360) * Math.sin(phiRadian) * (x1 - baseX) / canvasSizeH;
+                vector3.y = baseVector3.y + 2 * radius * Math.tan(camera.fov * Math.PI / 360) * (y1 - baseY) / canvasSizeH;
+                vector3.z = baseVector3.z + 2 * radius * Math.tan(camera.fov * Math.PI / 360) * Math.cos(phiRadian) * (x1 - baseX) / canvasSizeH;
+            }
+        }, false);
+
+        //-----------------------------------------------------------------------------------------------
+        // PNG画像保存ボタン
+        //-----------------------------------------------------------------------------------------------
+        document.form1.button2.addEventListener('click', function () {
+            renderer.domElement.getContext('webgl2', { antialias: true, preserveDrawingBuffer: true });
+            // ステレオ表示に対応
+            if (stereoSwitch === 0) {
+                camera.position.copy(vector11);
+                camera.lookAt(vector12);
+                effect.render(scene, camera);
+            } else if (stereoSwitch === 1) {
+                camera.position.copy(vector11);
+                camera.lookAt(vector12);
+                renderer.setScissor(0, 0, canvasSizeW / 2, canvasSizeH);
+                renderer.setViewport(-1 * canvasSizeW / 4, 0, canvasSizeW, canvasSizeH);
+                effect.render(scene, camera);
+                camera.position.copy(vector13);
+                camera.lookAt(vector14);
+                renderer.setScissor(canvasSizeW / 2, 0, canvasSizeW / 2, canvasSizeH);
+                renderer.setViewport(canvasSizeW / 4, 0, canvasSizeW, canvasSizeH);
+                effect.render(scene, camera);
+            }
+            renderer.domElement.toBlob(function (blob) {
+                const BLOB_URL = URL.createObjectURL(blob);
+                const A = document.createElement('a');
+                A.download = 'pngfile.png';
+                A.href = BLOB_URL;
+                A.click();
+                URL.revokeObjectURL(BLOB_URL);
+            }, 'image/png');
+            renderer.domElement.getContext('webgl2', { antialias: true, preserveDrawingBuffer: false });
+        }, false);
+
+        //-----------------------------------------------------------------------------------------------
+        // イベント WebM動画保存ボタン
+        //-----------------------------------------------------------------------------------------------
+        document.form1.button3.addEventListener('click', function () {
+            if (isRecording === false) {
+                document.form1.button3.innerHTML = '録画停止';
+                isRecording = true;
+                const MEDIA_STREAM = renderer.domElement.captureStream(24);
+                mediaRecorder = new MediaRecorder(MEDIA_STREAM, { mimeType: 'video/webm; codecs=vp9' });
+                mediaRecorder.start();
+                mediaRecorder.ondataavailable = function (event) {
+                    const BLOB_URL = URL.createObjectURL(new Blob([ event.data ], { type: event.data.type }));
+                    const A = document.createElement('a');
+                    A.download = 'webmfile.webm';
+                    A.href = BLOB_URL;
+                    A.click();
+                    URL.revokeObjectURL(BLOB_URL);
+                };
+            } else if (isRecording === true) {
+                document.form1.button3.innerHTML = 'WebM動画録画';
+                isRecording = false;
+                mediaRecorder.stop();
+            }
+        }, false);
+
+        //-----------------------------------------------------------------------------------------------
+        // カメラの位置、視点(LookAt)の場所計算
+        //-----------------------------------------------------------------------------------------------
+        function cameraPosition() {
+            vector12 = new THREE.Vector3(Math.cos(phiRadian + Math.PI / 2), 0, Math.sin(phiRadian + Math.PI / 2)).multiplyScalar(pupillaryDistance1);
+            vector12.add(vector3);
+            vector14 = new THREE.Vector3(Math.cos(phiRadian - Math.PI / 2), 0, Math.sin(phiRadian - Math.PI / 2)).multiplyScalar(pupillaryDistance1);
+            vector14.add(vector3);
+            vector11 = vector12.clone();
+            vector11.add(new THREE.Vector3(Math.sin(thetaRadian) * Math.cos(phiRadian), Math.cos(thetaRadian), Math.sin(thetaRadian) * Math.sin(phiRadian)).multiplyScalar(radius));
+            vector13 = vector14.clone();
+            vector13.add(new THREE.Vector3(Math.sin(thetaRadian) * Math.cos(phiRadian), Math.cos(thetaRadian), Math.sin(thetaRadian) * Math.sin(phiRadian)).multiplyScalar(radius));
         }
     </script>
   </body>
