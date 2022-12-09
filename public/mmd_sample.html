@@ -18,6 +18,10 @@
 
 	<body>
 
+        <form name="animationForm" style="text-align: center; width: 100%;">
+            <button type="button" name="morphBtn">表情のアニメーション</button>
+            <button type="button" name="boneBtn">ボーンのアニメーション</button>
+          </form>
 		<script src="./build/ammo.wasm.js"></script>
 
 		<!-- Import maps polyfill -->
@@ -47,191 +51,278 @@
 
 			let stats;
 
-			let mesh, camera, scene, renderer, effect;
+			let mesh, camera, scene, renderer, effect, clip;
 			let helper, ikHelper, physicsHelper;
 
 			const clock = new THREE.Clock();
 
-			Ammo().then( function ( AmmoLib ) {
-
+			Ammo().then(function (AmmoLib) {
 				Ammo = AmmoLib;
-
 				init();
 				animate();
-
-			} );
+			});
 
 
 			function init() {
 
-				const container = document.createElement( 'div' );
-				document.body.appendChild( container );
+				const container = document.createElement('div');
+				document.body.appendChild(container);
 
-				camera = new THREE.PerspectiveCamera( 45, window.innerWidth / window.innerHeight, 1, 2000 );
+				camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 1, 2000);
 				camera.position.z = 30;
 
-				// scene
-
 				scene = new THREE.Scene();
-				scene.background = new THREE.Color( 0xffffff );
+				scene.background = new THREE.Color(0xffffff);
 
-				const gridHelper = new THREE.PolarGridHelper( 30, 0.1 );
+				const gridHelper = new THREE.PolarGridHelper(30, 0.1);
 				gridHelper.position.y = - 10;
-				scene.add( gridHelper );
+				scene.add(gridHelper);
 
-				const ambient = new THREE.AmbientLight( 0x666666 );
-				scene.add( ambient );
+				const ambient = new THREE.AmbientLight(0x666666);
+				scene.add(ambient);
 
-				const directionalLight = new THREE.DirectionalLight( 0x887766 );
-				directionalLight.position.set( 1, 1, 1 ).normalize();
-				scene.add( directionalLight );
+				const directionalLight = new THREE.DirectionalLight(0x887766);
+				directionalLight.position.set(1, 1, 1).normalize();
+				scene.add(directionalLight);
 
-				//
+				renderer = new THREE.WebGLRenderer({antialias: true});
+				renderer.setPixelRatio(window.devicePixelRatio);
+				renderer.setSize(window.innerWidth, window.innerHeight);
+				container.appendChild(renderer.domElement);
 
-				renderer = new THREE.WebGLRenderer( { antialias: true } );
-				renderer.setPixelRatio( window.devicePixelRatio );
-				renderer.setSize( window.innerWidth, window.innerHeight );
-				container.appendChild( renderer.domElement );
-
-				effect = new OutlineEffect( renderer );
-
-				// STATS
+				effect = new OutlineEffect(renderer);
 
 				stats = new Stats();
-				container.appendChild( stats.dom );
+				container.appendChild(stats.dom);
 
 				// model
 
-				function onProgress( xhr ) {
-
-					if ( xhr.lengthComputable ) {
-
+				function onProgress(xhr) {
+					if (xhr.lengthComputable) {
 						const percentComplete = xhr.loaded / xhr.total * 100;
-						console.log( Math.round( percentComplete, 2 ) + '% downloaded' );
-
+						console.log(Math.round(percentComplete, 2) + '% downloaded');
 					}
-
 				}
 
+				const modelFile = './models/mmd/miku2/miku.pmx';
+				const vmdFiles = ['models/mmd/vmds/wavefile_v2.vmd'];
 
-				const modelFile = 'models/mmd/miku/miku_v2.pmd';
-				const vmdFiles = [ 'models/mmd/vmds/wavefile_v2.vmd' ];
-
-				helper = new MMDAnimationHelper( {
+				helper = new MMDAnimationHelper({
 					afterglow: 2.0
-				} );
+				});
 
 				const loader = new MMDLoader();
 
-				loader.loadWithAnimation( modelFile, vmdFiles, function ( mmd ) {
+				loader.loadWithAnimation(modelFile, vmdFiles, function (mmd) {
 
 					mesh = mmd.mesh;
 					mesh.position.y = - 10;
-					scene.add( mesh );
+					scene.add(mesh);
 
-					helper.add( mesh, {
+					helper.add(mesh, {
 						animation: mmd.animation,
 						physics: true
-					} );
+					});
 
-					ikHelper = helper.objects.get( mesh ).ikSolver.createHelper();
+					ikHelper = helper.objects.get(mesh).ikSolver.createHelper();
 					ikHelper.visible = false;
-					scene.add( ikHelper );
+					scene.add(ikHelper);
 
-					physicsHelper = helper.objects.get( mesh ).physics.createHelper();
+					physicsHelper = helper.objects.get(mesh).physics.createHelper();
 					physicsHelper.visible = false;
-					scene.add( physicsHelper );
+					scene.add(physicsHelper);
 
 					initGui();
 
-				}, onProgress, null );
+				}, onProgress, null);
 
-				const controls = new OrbitControls( camera, renderer.domElement );
+				const controls = new OrbitControls(camera, renderer.domElement);
 				controls.minDistance = 10;
 				controls.maxDistance = 100;
 
-				window.addEventListener( 'resize', onWindowResize );
+				window.addEventListener('resize', onWindowResize);
 
 				function initGui() {
 
+                    for (var i = 0; i < mesh.animations.length; ++i) {
+    if (mesh.geometry.animations[i].name === name) {
+        clip = mesh.geometry.animations[i];
+    }
+
+}
 					const api = {
-						'animation': true,
+						'animation': false,
 						'ik': true,
 						'outline': true,
-						'physics': true,
+						'physics': false,
 						'show IK bones': false,
 						'show rigid bodies': false
 					};
 
 					const gui = new GUI();
 
-					gui.add( api, 'animation' ).onChange( function () {
+                    helper.enable('animation', false);
+					gui.add(api, 'animation').onChange(function () {
+                        console.log(api['animation']);
+						helper.enable('animation', api['animation']);
+					});
 
-						helper.enable( 'animation', api[ 'animation' ] );
+					gui.add(api, 'ik').onChange(function () {
+						helper.enable('ik', api['ik']);
+					});
 
-					} );
+					gui.add(api, 'outline').onChange(function () {
+						effect.enabled = api['outline'];
+					});
 
-					gui.add( api, 'ik' ).onChange( function () {
+					gui.add(api, 'physics').onChange(function () {
+						helper.enable('physics', api['physics']);
+					});
 
-						helper.enable( 'ik', api[ 'ik' ] );
+					gui.add(api, 'show IK bones').onChange(function () {
+						ikHelper.visible = api['show IK bones'];
+					});
 
-					} );
-
-					gui.add( api, 'outline' ).onChange( function () {
-
-						effect.enabled = api[ 'outline' ];
-
-					} );
-
-					gui.add( api, 'physics' ).onChange( function () {
-
-						helper.enable( 'physics', api[ 'physics' ] );
-
-					} );
-
-					gui.add( api, 'show IK bones' ).onChange( function () {
-
-						ikHelper.visible = api[ 'show IK bones' ];
-
-					} );
-
-					gui.add( api, 'show rigid bodies' ).onChange( function () {
-
-						if ( physicsHelper !== undefined ) physicsHelper.visible = api[ 'show rigid bodies' ];
-
-					} );
-
+					gui.add(api, 'show rigid bodies').onChange( function () {
+						if (physicsHelper !== undefined) physicsHelper.visible = api['show rigid bodies'];
+					});
 				}
-
 			}
 
 			function onWindowResize() {
-
 				camera.aspect = window.innerWidth / window.innerHeight;
 				camera.updateProjectionMatrix();
-
-				effect.setSize( window.innerWidth, window.innerHeight );
-
+				effect.setSize(window.innerWidth, window.innerHeight);
 			}
 
-			//
-
 			function animate() {
-
-				requestAnimationFrame( animate );
-
+				requestAnimationFrame(animate);
 				stats.begin();
 				render();
 				stats.end();
-
 			}
 
 			function render() {
-
-				helper.update( clock.getDelta() );
-				effect.render( scene, camera );
-
+				helper.update(clock.getDelta());
+				effect.render(scene, camera);
 			}
+
+            document.animationForm.morphBtn.onclick = async function() {
+                // 同期・非同期による処理 引数は、ターゲットのモーフ（表情）の名前、アニメーションの時間（秒）、開始時点のモーフ（表情）の値、終了時点のモーフ（表情）の値
+                morphAnimation( '笑い', 0.5, 0 );
+                morphAnimation( '真面目', 0.5, 0 );
+                await morphAnimation( 'にっこり', 0.5, 0 );
+                await morphAnimation( 'にっこり', 0.5 );
+                morphAnimation( '笑い', 0.5, 1, 0 );
+                morphAnimation( '真面目', 0.5, 1, 0 );
+                await morphAnimation( 'にっこり', 0.5, 1, 0 );
+            };
+            document.animationForm.boneBtn.onclick = async function() {
+                const X_AXIS = new THREE.Vector3( 1, 0, 0 );
+                const Y_AXIS = new THREE.Vector3( 0, 1, 0 );
+                const Z_AXIS = new THREE.Vector3( 0, 0, 1 );
+                // 同期・非同期による処理 引数は、ターゲットのボーン、アニメーションの時間（秒）、軸、開始時点の角度、終了時点の角度
+                boneAnimation( '左腕', 5, Z_AXIS, 0, 60 );
+                boneAnimation( '左ひじ', 5, Z_AXIS, 0, 60 );
+                boneAnimation( '右腕', 5, Z_AXIS, 0, -60 );
+                await boneAnimation( '首', 5, X_AXIS, 0, -20 );
+                await boneAnimation( '首', 5, X_AXIS, -20 );
+                boneAnimation( '左腕', 5, Z_AXIS, 60, 0 );
+                boneAnimation( '右腕', 5, Z_AXIS, -60, 0 );
+                await boneAnimation( '首', 5, X_AXIS, -20, 0 );
+            };
+  
+            //-----------------------------------------------------------------------------------------------
+            // setTimeoutループによる表情のアニメーション
+            //-----------------------------------------------------------------------------------------------
+            function morphAnimation( morphName, duration = 0, startValue = 1, endValue = 1 ) {
+                // 非同期処理のためのPromise関数
+                return new Promise( function ( resolve ) {
+                    // アニメーションの間隔、24 FPSとなるように間隔を設定
+                    const INTERVAL = 1000 / 24;
+                    // アニメーションの間隔ごとに足されるモーフ（表情）の値
+                    const VALUE_DELTA = ( endValue - startValue ) * INTERVAL / ( duration * 1000 );
+                    // .morphTargetDictionaryを使用してモーフ（表情）のインデックスを取得
+                    const INDEX = mesh.morphTargetDictionary[ morphName ];
+                    // カウント値（時間）
+                    let count = 0;
+                    // 開始時に開始時点のモーフ（表情）の値を設定
+                    mesh.morphTargetInfluences[ INDEX ] = startValue;
+                    // 開始時点のモーフ（表情）の値と終了時点のモーフ（表情）の値が同じ場合は、繰り返し処理（setTimeoutループ）を行わずアニメーションの時間（秒）待機してから関数から離脱
+                    if ( VALUE_DELTA === 0 ) {
+                    // アニメーションの時間（秒）待機
+                    setTimeout( function () {
+                        // resolve()により非同期処理が完了
+                        resolve();
+                        return;
+                    }, duration * 1000 );
+                    }
+                    // 繰り返し処理（setTimeoutループ）
+                    let repeat = function () {
+                    mesh.morphTargetInfluences[ INDEX ] += VALUE_DELTA;
+                    if ( count < duration * 1000 ) {
+                        // カウント値がアニメーションの時間（秒）内の場合は、引き続き繰り返し処理を行う
+                        setTimeout( repeat, INTERVAL );
+                    } else {
+                        // カウント値がアニメーションの時間（秒）を超えた場合は、繰り返し処理から離脱
+                        // 終了時に終了時点のモーフ（表情）の値を設定
+                        mesh.morphTargetInfluences[ INDEX ] = endValue;
+                        // resolve()により非同期処理が完了
+                        resolve();
+                    }
+                    // カウント値（時間）を進める
+                    count += INTERVAL;
+                    }
+                    // 繰り返し処理開始のトリガー
+                    repeat();
+                } );
+            }
+
+            //-----------------------------------------------------------------------------------------------
+            // setTimeoutループによるボーンのアニメーション
+            //-----------------------------------------------------------------------------------------------
+            function boneAnimation( bone, duration = 0, vector = new THREE.Vector3( 1, 0, 0 ), startAngle = 0, endAngle = startAngle ) {
+                // 非同期処理のためのPromise関数
+                return new Promise( function ( resolve ) {
+                const BONES = mesh.skeleton.bones;
+                // ボーンの名前からインデックスを作成できる様に、boneNameDictionaryを作成
+                let boneNameDictionary = {};
+                for ( let i = 0; i < BONES.length; i ++ ) {
+                    boneNameDictionary[ BONES[ i ].name ] = i;
+                }
+                // アニメーションの間隔、24 FPSとなるように間隔を設定
+                const INTERVAL = 1000 / 24;
+                // アニメーションの間隔ごとに掛け合わされる四元数（quaternion）の値
+                const ANGLE_DELTA = ( endAngle - startAngle ) * INTERVAL / ( duration * 1000 );
+                const QUATERNION = new THREE.Quaternion().setFromAxisAngle( vector, ANGLE_DELTA * Math.PI / 180 );
+                // ボーンのインデックス
+                const INDEX = boneNameDictionary[ bone ];
+                // カウント値（時間）
+                let count = 0;
+                // 開始時点の角度と終了時点の角度が同じ場合は、繰り返し処理を行わず待機
+                if ( ANGLE_DELTA === 0 ) {
+                    setTimeout( function () {
+                    resolve();
+                    return;
+                    }, duration * 1000 );
+                }
+                // 繰り返し処理
+                let repeat = function () {
+                    BONES[ INDEX ].quaternion.multiply( QUATERNION );
+                    if ( count < duration * 1000 ) {
+                    // カウント値がアニメーションの時間（秒）内の場合は、引き続き繰り返し処理を行う
+                    setTimeout( repeat, INTERVAL );
+                    } else {
+                    // カウント値がアニメーションの時間（秒）を超えた場合は、繰り返し処理から離脱
+                    // resolve()により非同期処理が完了する
+                    resolve();
+                    }
+                    count += INTERVAL;
+                    }
+                    // 繰り返し処理を開始する
+                    repeat();
+                } );
+            }
 
 		</script>
 
