@@ -6,18 +6,16 @@
   </head>
   <body>
     <!-- MMDが描画されるHTML要素 -->
-    <div id="webgl" style="width: 60%;height:60%;"></div>
+    <div id="webgl" style="width: 70%;height:60%;"></div>
     <br />
     <form name="form1" style="text-align: center; width: 100%;">
         <!-- ステレオ表示へ切り替えるためのボタン -->
-        <button type="button" name="button1">ステレオ表示</button><br />
-        <br />
+        <button type="button" name="button1">ステレオ表示</button>
         <!-- PNG画像保存ボタン -->
         <button type="button" name="button2">PNG画像保存</button>
         <!-- WebM動画保存ボタン -->
         <button type="button" name="button3">WebM動画保存</button>
     </form>
-    <br />
     <form name="form2" style="text-align: center; width: 100%;">
         <!-- モーションの開始/一時停止ボタン -->
         <button type="button">M01</button>
@@ -35,9 +33,8 @@
         <button type="button">M13</button>
         <button type="button">M14</button>
         <button type="button">M15</button>
-        <button type="button">M16</button><br />
+        <button type="button">M16</button>
     </form>
-    <br />
     <form name="form3" style="text-align: center; width: 100%;">
         <!-- ポーズの開始/一時停止ボタン -->
         <button type="button">P01</button>
@@ -79,7 +76,12 @@
         <button type="button">P37</button>
         <button type="button">P38</button>
         <button type="button">P39</button>
-        <button type="button">P40</button><br />
+        <button type="button">P40</button>
+    </form>
+    <form name="form4" style="text-align: center; width: 100%;">
+        <label for="label1" style="display: block; padding: 0 10%; text-align: left;"><b>口パク&nbsp;（ひらがなまたはカタカナで入力する）</b></label>
+        <textarea name="textarea1" id="label1" style="width: 30%;"></textarea>
+        <button type="button" name="button1">テキストの口パク</button>
     </form>
     <script src="./build/mmdparser.js"></script>
     <script src="./build/ammo.wasm.js"></script>
@@ -212,6 +214,11 @@
             { name: 'ヒヤシンス姫', file: './models/mmd/miku2/MMDPose/ヒヤシンス姫.vpd' }
         ];
 
+        // 表情（モーフ）のアニメーションに関連する変数
+        const frameNumber = 4;
+        const frameRate = 24;
+        const morphValue = 0.5;
+
         // Ammo の 「Ammo.btDefaultCollisionConfiguration is not a function」 のエラー回避
         Ammo().then(function (AmmoLib) {
             Ammo = AmmoLib;
@@ -313,7 +320,7 @@
                     animationMixer.stopAllAction();
                     scene.add(mesh);
                 }
-           );
+          );
         }
 
         //-----------------------------------------------------------------------------------------------
@@ -449,6 +456,103 @@
         };
 
         //-----------------------------------------------------------------------------------------------
+        // 「テキストの口パク」をクリックした時の処理
+        //-----------------------------------------------------------------------------------------------
+        document.form4.button1.onclick = async function() {
+            // テキストエリアから文字列を取得する
+            let input = String(document.form4.textarea1.value);
+            // 「を」を「うぉ」として利用するため、「お」に置換
+            input = input.replace(/を|ヲ/g, 'お');
+            // 置換しにくい言葉を前もって置換する
+            input = input.replace(/(てぃ)|(でぃ)|(ティ)|(ディ)/g, 'い');
+            input = input.replace(/(でゅ)|(デュ)/g, 'う');
+            // 「とぅ」を「十(とぅ)」に置換
+            input = input.replace(/(とぅ)|(トゥ)/g, '十');
+            // 「あ」行、「ま」行、「わ」行、「ん」「ー」の文字にに置換
+            input = input.replace(/(うぁ)|(つぁ)|(ふぁ)|ワ|(ウァ)|(ツァ)|(ファ)/g, 'わ');
+            input = input.replace(/(うぃ)|(つぃ)|(ふぃ)|ヰ|(ウィ)|(ツィ)|(フィ)/g, 'ゐ');
+            input = input.replace(/(うぇ)|(つぇ)|(ふぇ)|ヱ|(ウェ)|(ツェ)|(フェ)/g, 'ゑ');
+            input = input.replace(/(うぉ)|(つぉ)|(ふぉ)|(ウォ)|(ツォ)(フォ)/g, 'を');
+            input = input.replace(/か|が|(きゃ)|(ぎゃ)|さ|ざ|(しゃ)|(じゃ)|た|だ|(ちゃ)|(ぢゃ)|な|(にゃ)|は|(ひゃ)|や|ら|(りゃ)/g, 'あ');
+            input = input.replace(/ア|カ|ガ|(キャ)|(ギャ)|サ|ザ|(シャ)|(ジャ)|タ|ダ|(チャ)|(ヂャ)|ナ|(ニャ)|ハ|(ヒャ)|ヤ|ラ|(リャ)/g, 'あ');
+            input = input.replace(/ば|(びゃ)|ぱ|(ぴゃ)|(ゔぁ)|マ|バ|(ビャ)|パ|(ピャ)|(ヴァ)/g, 'ま');
+            input = input.replace(/け|げ|せ|ぜ|(しぇ)|(じぇ)|て|で|(ちぇ)|(ぢぇ)|ね|へ|れ/g, 'え');
+            input = input.replace(/エ|ケ|ゲ|セ|ゼ|(シェ)|(ジェ)|テ|デ|(チェ)|(ヂェ)|ネ|ヘ|レ/g, 'え');
+            input = input.replace(/べ|ぺ|(ゔぇ)|メ|ベ|ペ|(ヴェ)/g, 'め');
+            input = input.replace(/こ|ご|(きょ)|(ぎょ)|そ|ぞ|(しょ)|(じょ)|と|ど|(ちょ)|(ぢょ)|の|(にょ)|ほ|(ひょ)|よ|ろ|(りょ)/g, 'お');
+            input = input.replace(/オ|コ|ゴ|(キョ)|(ギョ)|ソ|ゾ|(ショ)|(ジョ)|ト|ド|(チョ)|(ヂョ)|ノ|(ニョ)|ホ|(ヒョ)|ヨ|ロ|(リョ)/g, 'お');
+            input = input.replace(/ぼ|(びょ)|ぽ|(ぴょ)|モ|ボ|(ビョ)|ポ|(ピョ)/g, 'も');
+            input = input.replace(/ゔ|く|ぐ|(きゅ)|(ぎゅ)|す|ず|(しゅ)|(じゅ)|つ|づ|(ちゅ)|(ぢゅ)|ぬ|(にゅ)|ふ|(ひゅ)|ゆ|る|(りゅ)/g, 'う');
+            input = input.replace(/ウ|ヴ|ク|グ|(キュ)|(ギュ)|ス|ズ|(シュ)|(ジュ)|ツ|ヅ|(チュ)|(ヂュ)|ヌ|(ニュ)|フ|(ヒュ)|ユ|ル|(リュ)/g, 'う');
+            input = input.replace(/ぶ|(びゅ)|ぷ|(ぴゅ)|ム|ブ|(ビュ)|プ|(ピュ)/g, 'む');
+            input = input.replace(/き|ぎ|し|じ|ち|ぢ|に|ひ|り/g, 'い');
+            input = input.replace(/イ|キ|ギ|シ|ジ|チ|ヂ|ニ|ヒ|リ/g, 'い');
+            input = input.replace(/び|ぴ|ミ|ビ|ピ/g, 'み');
+            input = input.replace(/ン/g, 'ん');
+            input = input.replace(/っ|ッ/g, 'ー');
+            input = input.replace(/、|。|！|？/g, 'ーー');
+            input = input.replace(/「|」|（|）/g, '');
+            // 「ー」の置換。一つ前の文字によって置換する文字が変わる。
+            for (let i = 0; i < input.length; i ++) {
+                if (input.charAt(i) === 'ー') {
+                if (input.charAt(i - 1).match(/あ|ま|わ/)) {
+                    input = input.substring(0, i) + 'あ' + input.substring(i + 1, input.length);
+                } else if (input.charAt(i - 1).match(/い|み|ゐ/)) {
+                    input = input.substring(0, i) + 'い' + input.substring(i + 1, input.length);
+                } else if (input.charAt(i - 1).match(/う|む|十/)) {
+                    input = input.substring(0, i) + 'う' + input.substring(i + 1, input.length);
+                } else if (input.charAt(i - 1).match(/え|め|ゑ/)) {
+                    input = input.substring(0, i) + 'え' + input.substring(i + 1, input.length);
+                } else if (input.charAt(i - 1).match(/お|も|を/)) {
+                    input = input.substring(0, i) + 'お' + input.substring(i + 1, input.length);
+                } else if (input.charAt(i - 1).match(/ん/)) {
+                    input = input.substring(0, i) + 'ん' + input.substring(i + 1, input.length);
+                }
+                
+                }
+            }
+            // 一文字ずつ表情のアニメーションを実行
+            for (let i = 0; i < input.length; i ++) {
+                if (input.charAt(i).match(/あ|い|う|え|お|ん/)) {
+                await morphAnimation(input.charAt(i), input.charAt(i + 1), frameNumber, morphValue);
+                } else if (input.charAt(i) === 'ま') {
+                    // 「ま」行は、口を一度閉じる
+                    await morphAnimation('あ', 'あ', 1, 0);
+                    await morphAnimation('あ', input.charAt(i + 1), frameNumber - 1, morphValue);
+                } else if (input.charAt(i) === 'み') {
+                    await morphAnimation('い', 'い', 1, 0);
+                    await morphAnimation('い', input.charAt(i + 1), frameNumber - 1, morphValue);
+                } else if (input.charAt(i) === 'む') {
+                    await morphAnimation('う', 'う', 1, 0);
+                    await morphAnimation('う', input.charAt(i + 1), frameNumber - 1, morphValue);
+                } else if (input.charAt(i) === 'め') {
+                    await morphAnimation('え', 'え', 1, 0);
+                    await morphAnimation('え', input.charAt(i + 1), frameNumber - 1, morphValue);
+                } else if (input.charAt(i) === 'も') {
+                    await morphAnimation('お', 'お', 1, 0);
+                    await morphAnimation('お', input.charAt(i + 1), frameNumber - 1, morphValue);
+                } else if (input.charAt(i) === 'わ') {
+                    // 「わ」行は、まず口を「う」の形にする
+                    await morphAnimation('う', 'あ', 1, morphValue);
+                    await morphAnimation('あ', input.charAt(i + 1), frameNumber - 1, morphValue);
+                } else if (input.charAt(i) === 'ゐ') {
+                    await morphAnimation('う', 'い', 1, morphValue);
+                    await morphAnimation('い', input.charAt(i + 1), frameNumber - 1, morphValue);
+                } else if (input.charAt(i) === 'ゑ') {
+                    await morphAnimation('う', 'え', 1, morphValue);
+                    await morphAnimation('え', input.charAt(i + 1), frameNumber - 1, morphValue);
+                } else if (input.charAt(i) === 'を') {
+                    await morphAnimation('う', 'お', 1, morphValue);
+                    await morphAnimation('お', input.charAt(i + 1), frameNumber - 1, morphValue);
+                } else if (input.charAt(i) === '十') {
+                    // 「十」は、まず口を「お」の形にした後、「う」の形にする
+                    await morphAnimation('お', 'う', 1, morphValue);
+                    await morphAnimation('う', input.charAt(i + 1), frameNumber - 1, morphValue);
+                }
+            }
+        };
+
+        //-----------------------------------------------------------------------------------------------
         // 画面上でのドラッグの開始/終了
         //-----------------------------------------------------------------------------------------------
         document.getElementById('webgl').addEventListener('pointerdown', function (event) {
@@ -460,12 +564,12 @@
             baseThetaRadian = thetaRadian;
             baseVector3 = vector3.clone();
             if (event.buttons === 4) {
-            radius = 4.5;
+                radius = 4.5;
             }
         }, false);
         document.getElementById('webgl').addEventListener('pointerup', function () {
             if (isDragging === true) {
-            isDragging = false;
+                isDragging = false;
             }
         }, false);
         document.getElementById('webgl').addEventListener('pointerout', function () {
@@ -635,6 +739,47 @@
             vector11.add(new THREE.Vector3(Math.sin(thetaRadian) * Math.cos(phiRadian), Math.cos(thetaRadian), Math.sin(thetaRadian) * Math.sin(phiRadian)).multiplyScalar(radius));
             vector13 = vector14.clone();
             vector13.add(new THREE.Vector3(Math.sin(thetaRadian) * Math.cos(phiRadian), Math.cos(thetaRadian), Math.sin(thetaRadian) * Math.sin(phiRadian)).multiplyScalar(radius));
+        }
+
+        //-----------------------------------------------------------------------------------------------
+        // 表情（モーフ）のアニメーション
+        //-----------------------------------------------------------------------------------------------
+        function morphAnimation(morphName, nextMorphName, frame = 4, value = 1) {
+            // 非同期処理のためのPromise関数
+            return new Promise(function (resolve) {
+                // アニメーションの間隔、24 FPSとなるように間隔を設定
+                const INTERVAL = 1000 / 10;
+                // .morphTargetDictionaryを使用して表情（モーフ）のインデックスを取得
+                const INDEX = mesh.morphTargetDictionary[ morphName ];
+                // 開始時に開始時点の表情（モーフ）の値を設定
+                mesh.morphTargetInfluences[ INDEX ] = value;
+                // frameで指定した時間待機
+                setTimeout(function() {
+                    // resolve()により非同期処理が完了
+                    resolve();
+                    // resolve()後、1つ後の文字によって対応が変わる
+                    if (morphName === nextMorphName) {
+                        // 現在の口の形を維持する
+                        return;
+                    } else if (morphName !== nextMorphName && nextMorphName.match(/ま|み|む|め|も/)) {
+                        // 口を閉じる
+                        mesh.morphTargetInfluences[ INDEX ] = 0;
+                    } else if (morphName !== nextMorphName && nextMorphName.match(/わ|ゐ|ゑ|を/)) {
+                        // 口を「う」の形にする
+                        mesh.morphTargetInfluences[ INDEX ] = 0;
+                        mesh.morphTargetInfluences[ mesh.morphTargetDictionary[ 'う' ] ] = value;
+                    } else if (morphName !== nextMorphName && nextMorphName === '十') {
+                        // 口を「お」の形にする
+                        mesh.morphTargetInfluences[ INDEX ] = 0;
+                        mesh.morphTargetInfluences[ mesh.morphTargetDictionary[ 'お' ] ] = value;
+                    } else {
+                        // 1フレーム後に表情（モーフ）の値を0にする
+                        setTimeout(function() {
+                            mesh.morphTargetInfluences[ INDEX ] = 0;
+                        }, INTERVAL);
+                    }
+                }, INTERVAL * frame);
+            });
         }
     </script>
   </body>
