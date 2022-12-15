@@ -1,5 +1,6 @@
-# threejs-express
+# 3DModel-ThreeJS
 
+3Dモデルを動かすサンプル
 
 ## 環境構築
 
